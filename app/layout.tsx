@@ -5,6 +5,9 @@ import LayoutClient from "@/components/LayoutClient";
 export const metadata: Metadata = {
   title: "TalkSuite — NetSuite AI by Opus Inspection",
   description: "Opus Inspection's plain-English NetSuite assistant — instant answers for Finance, Sales, and Inventory.",
+  icons: {
+    icon: "/opus-logo1.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

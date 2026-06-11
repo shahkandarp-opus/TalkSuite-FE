@@ -7,8 +7,8 @@ import {
 import { LayoutDashboard, TrendingUp, DollarSign, Package, TrendingDown, Minus } from "lucide-react";
 
 const TT = {
-  background: "#0e1118", border: "1px solid #242b3d", borderRadius: 8,
-  color: "#e6e8f0", fontFamily: "IBM Plex Mono, monospace", fontSize: 12,
+  background: "#ffffff", border: "1px solid #e0e4e5", borderRadius: 0,
+  color: "#131e29", fontFamily: "'Brokman', sans-serif", fontSize: 12,
 };
 const money = (n: number) => "$" + n.toLocaleString();
 const pct = (n: number, d = 1) => n.toLocaleString(undefined, { maximumFractionDigits: d }) + "%";
@@ -150,16 +150,16 @@ export default function Dashboard() {
                 <AreaChart data={monthly} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                   <defs>
                     <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2db82d" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#2db82d" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#004851" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#004851" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <Tooltip contentStyle={TT} cursor={{ stroke: "#2db82d", strokeOpacity: .3 }} />
-                  <Area type="monotone" dataKey="value" stroke="#2db82d" strokeWidth={2.5}
-                    fill="url(#salesGrad)" dot={{ r: 3, fill: "#2db82d" }} />
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <Tooltip contentStyle={TT} cursor={{ stroke: "#004851", strokeOpacity: .3 }} />
+                  <Area type="monotone" dataKey="value" stroke="#004851" strokeWidth={2.5}
+                    fill="url(#salesGrad)" dot={{ r: 3, fill: "#004851" }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -167,14 +167,14 @@ export default function Dashboard() {
               <h3>Top Customers YTD</h3>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={topCustomers} margin={{ top: 8, right: 16, left: 0, bottom: 44 }}>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 10 }} stroke="#242b3d"
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 10 }} stroke="#ccd3d4"
                     interval={0} angle={-25} textAnchor="end" height={60} />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
                   <Tooltip contentStyle={TT} cursor={{ fill: "rgba(45,184,45,.07)" }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {topCustomers.map((_: any, i: number) => (
-                      <Cell key={i} fill="#2db82d" fillOpacity={0.5 + 0.5 * (1 - i / Math.max(topCustomers.length, 1))} />
+                      <Cell key={i} fill="#004851" fillOpacity={0.5 + 0.5 * (1 - i / Math.max(topCustomers.length, 1))} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -202,16 +202,16 @@ export default function Dashboard() {
                 <AreaChart data={MONTHLY_MOCK} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                   <defs>
                     <linearGradient id="salesG2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2db82d" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#2db82d" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#004851" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#004851" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
                   <Tooltip contentStyle={TT} />
-                  <Area type="monotone" dataKey="value" stroke="#2db82d" strokeWidth={2.5}
-                    fill="url(#salesG2)" dot={{ r: 3, fill: "#2db82d" }} />
+                  <Area type="monotone" dataKey="value" stroke="#004851" strokeWidth={2.5}
+                    fill="url(#salesG2)" dot={{ r: 3, fill: "#004851" }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -219,14 +219,14 @@ export default function Dashboard() {
               <h3>Top Customers</h3>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={CUSTOMERS_MOCK} margin={{ top: 8, right: 16, left: 0, bottom: 44 }}>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 10 }} stroke="#242b3d"
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 10 }} stroke="#ccd3d4"
                     interval={0} angle={-20} textAnchor="end" height={60} />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
                   <Tooltip contentStyle={TT} cursor={{ fill: "rgba(45,184,45,.07)" }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {CUSTOMERS_MOCK.map((_, i) => (
-                      <Cell key={i} fill="#2db82d" fillOpacity={0.5 + 0.5 * (1 - i / 5)} />
+                      <Cell key={i} fill="#004851" fillOpacity={0.5 + 0.5 * (1 - i / 5)} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -252,13 +252,13 @@ export default function Dashboard() {
               <h3>AR Aging Buckets</h3>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={AGING_MOCK} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
                   <Tooltip contentStyle={TT} cursor={{ fill: "rgba(79,207,133,.07)" }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {AGING_MOCK.map((_, i) => (
-                      <Cell key={i} fill={i >= 3 ? "#f06b6b" : "#4fcf85"}
+                      <Cell key={i} fill={i >= 3 ? "#f06b6b" : "#4c9c2e"}
                         fillOpacity={i >= 3 ? 0.85 : 0.7 - i * 0.08} />
                     ))}
                   </Bar>
@@ -271,16 +271,16 @@ export default function Dashboard() {
                 <AreaChart data={MONTHLY_MOCK} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                   <defs>
                     <linearGradient id="cashG" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4fcf85" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#4fcf85" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#4c9c2e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#4c9c2e" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
                   <Tooltip contentStyle={TT} />
-                  <Area type="monotone" dataKey="value" stroke="#4fcf85" strokeWidth={2.5}
-                    fill="url(#cashG)" dot={{ r: 3, fill: "#4fcf85" }} />
+                  <Area type="monotone" dataKey="value" stroke="#4c9c2e" strokeWidth={2.5}
+                    fill="url(#cashG)" dot={{ r: 3, fill: "#4c9c2e" }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -304,13 +304,13 @@ export default function Dashboard() {
               <h3>Value by Category</h3>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={INVENTORY_MOCK} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
-                  <CartesianGrid stroke="#1c2132" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                  <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
                   <Tooltip contentStyle={TT} cursor={{ fill: "rgba(61,213,213,.07)" }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {INVENTORY_MOCK.map((_, i) => (
-                      <Cell key={i} fill="#3dd5d5" fillOpacity={0.85 - i * 0.1} />
+                      <Cell key={i} fill="#41bbc9" fillOpacity={0.85 - i * 0.1} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -321,9 +321,9 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={LOW_STOCK_MOCK} layout="vertical"
                   margin={{ top: 4, right: 20, left: 10, bottom: 4 }}>
-                  <CartesianGrid stroke="#1c2132" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                  <YAxis type="category" dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" width={68} />
+                  <CartesianGrid stroke="#e0e4e5" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                  <YAxis type="category" dataKey="name" tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" width={68} />
                   <Tooltip contentStyle={TT} cursor={{ fill: "rgba(240,107,107,.06)" }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                     {LOW_STOCK_MOCK.map((_, i) => (
