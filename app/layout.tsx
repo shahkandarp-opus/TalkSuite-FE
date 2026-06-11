@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Shell from "@/components/Shell";
+import LayoutClient from "@/components/LayoutClient";
 
 export const metadata: Metadata = {
   title: "TalkSuite — NetSuite AI by Opus Inspection",
@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Shell>{children}</Shell>
+        <LayoutClient>{children}</LayoutClient>
       </body>
     </html>
   );

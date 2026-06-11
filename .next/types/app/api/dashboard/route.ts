@@ -1,4 +1,4 @@
-// File: C:\Users\Rishabh.Gaur\Downloads\talksuite\app\api\dashboard\route.ts
+// File: C:\Users\Manish.Rajwani\Documents\AI Hackathon\TalkSuite-FE\app\api\dashboard\route.ts
 import * as entry from '../../../../../app/api/dashboard/route.js'
 import type { NextRequest } from 'next/server.js'
 

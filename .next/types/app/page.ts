@@ -1,4 +1,4 @@
-// File: C:\Users\Rishabh.Gaur\Downloads\talksuite\app\page.tsx
+// File: C:\Users\Manish.Rajwani\Documents\AI Hackathon\TalkSuite-Backend\TalkSuite-FE\app\page.tsx
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

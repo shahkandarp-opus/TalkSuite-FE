@@ -1,4 +1,4 @@
-// File: C:\Users\Rishabh.Gaur\Downloads\talksuite\app\api\ask\route.ts
+// File: C:\Users\Manish.Rajwani\Documents\AI Hackathon\TalkSuite-FE\app\api\ask\route.ts
 import * as entry from '../../../../../app/api/ask/route.js'
 import type { NextRequest } from 'next/server.js'
 
