@@ -5,27 +5,51 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import {
-  Plus, ShieldCheck, ShieldAlert, Database, BookOpen,
-  CircleHelp, Code2, Mic, MicOff, Send, ClipboardList, X,
-  Sparkles, RotateCcw,
+  Plus, Database, BookOpen, CircleHelp, Mic, MicOff,
+  Send, X, Sparkles, Loader2, ChevronDown, Zap, Search,
 } from "lucide-react";
+import {
+  createConversation, listConversations, getConversation,
+  deleteConversation, sendMessage, healthCheck, transcribeAudio,
+  type Conversation,
+} from "@/lib/api";
 
 // ─── types ───────────────────────────────────────────────────────────────────
+type ChartBlock = {
+  chart_type: "bar" | "line" | "area" | "none";
+  title: string;
+  data: any[];
+  keys?: { x: string; y?: string; series?: string[] };
+  options?: { y_label?: string; currency?: string; colors?: string[] };
+};
+
 type AiMsg = {
   id: string; role: "assistant";
-  mode?: "data" | "help" | "clarify";
-  answer?: string; query?: string; guardrail?: string; blocked?: boolean;
-  columns?: any[]; rows?: any[]; chart?: string; suggestions?: string[];
+  answer: string;
+  chartBlock?: ChartBlock;
+  suggestions?: string[];
+  status?: "thinking" | "tool_call" | "streaming" | "done";
+  toolName?: string;
+  reasoning?: ReasoningStep[];
   error?: string;
 };
+
+type ReasoningStep = {
+  type: "thinking" | "tool_call" | "tool_result" | "source";
+  label: string;
+  detail?: string;
+};
 type UserMsg = { id: string; role: "user"; question: string };
-type Message = UserMsg | AiMsg | { id: string; role: "loading" };
+type Message = UserMsg | AiMsg;
 
-type Chat = { id: string; title: string; messages: Message[]; updatedAt: number };
-type AuditEntry = { id: string; ts: number; question: string; mode: string; query: string; rows: number };
+type Chat = {
+  id: string;         // frontend ID
+  backendId: string;  // backend conversation UUID
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+};
 
-const LS_CHATS = "ts_chats";
-const LS_AUDIT = "ts_audit";
 const TT = {
   background: "#0e1118", border: "1px solid #242b3d", borderRadius: 8,
   color: "#e6e8f0", fontFamily: "IBM Plex Mono, monospace", fontSize: 12,
@@ -50,55 +74,93 @@ const STARTERS = [
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string) => void }) {
-  const [showQuery, setShowQuery] = useState(false);
-  const cols = msg.columns || [];
-  const rows = msg.rows || [];
-  const xKey = cols[0]?.key;
-  const numKey = cols.find((c: any) => c.key !== xKey && rows.some((r: any) => typeof r[c.key] === "number"))?.key;
-  const chartData = xKey && numKey ? rows.map((r: any) => ({ name: String(r[xKey]), value: Number(r[numKey]) })) : [];
-  const showChart = msg.chart && msg.chart !== "none" && chartData.length > 0;
+  const [showReasoning, setShowReasoning] = useState(false);
+  const chart = msg.chartBlock;
+  const chartData = chart?.data || [];
+  const showChart = chart && chart.chart_type !== "none" && chartData.length > 0;
+  const xKey = chart?.keys?.x || "name";
+  const yKey = chart?.keys?.y || "value";
+  const hasReasoning = msg.reasoning && msg.reasoning.length > 0;
 
   return (
     <div className="ai-body">
-      {/* mode tag */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span className={`tag ${msg.mode}`}>
-          {msg.mode === "data" ? <Database size={11} /> : msg.mode === "help" ? <BookOpen size={11} /> : <CircleHelp size={11} />}
-          {msg.mode?.toUpperCase()}
-        </span>
-      </div>
-
-      {/* answer */}
-      {msg.error
-        ? <div className="guard bad"><ShieldAlert size={14} />{msg.error}</div>
-        : <div className="ai-answer">{msg.answer}</div>}
-
-      {/* guardrail */}
-      {msg.mode === "data" && !msg.error && (
-        msg.blocked
-          ? <div className="guard bad"><ShieldAlert size={14} />Blocked: {msg.guardrail}</div>
-          : <div className="guard"><ShieldCheck size={14} />{msg.guardrail}</div>
-      )}
-
-      {/* table */}
-      {!msg.blocked && !msg.error && cols.length > 0 && (
-        <div className="card" style={{ overflow: "hidden" }}>
-          <table>
-            <thead><tr>{cols.map((c: any) => <th key={c.key}>{c.label}</th>)}</tr></thead>
-            <tbody>
-              {rows.map((r: any, i: number) => (
-                <tr key={i}>{cols.map((c: any) => <td key={c.key}>{fmt(r[c.key])}</td>)}</tr>
+      {/* reasoning section (collapsible, at top like Gemini) */}
+      {hasReasoning && msg.status === "done" && (
+        <div style={{ marginBottom: 10 }}>
+          <button
+            onClick={() => setShowReasoning((s) => !s)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "none", border: "1px solid var(--border)", borderRadius: 6,
+              padding: "6px 10px", cursor: "pointer", color: "var(--muted)",
+              fontSize: 11, fontFamily: "var(--mono)", width: "fit-content",
+            }}
+          >
+            <Zap size={11} />
+            Reasoning ({msg.reasoning!.length} step{msg.reasoning!.length !== 1 ? "s" : ""})
+            <ChevronDown
+              size={12}
+              style={{ transform: showReasoning ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+            />
+          </button>
+          {showReasoning && (
+            <div style={{
+              marginTop: 8, padding: "10px 12px", background: "var(--card)",
+              border: "1px solid var(--border)", borderRadius: 8, fontSize: 12,
+            }}>
+              {msg.reasoning!.map((step, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: i < msg.reasoning!.length - 1 ? 8 : 0 }}>
+                  <div style={{
+                    minWidth: 20, height: 20, borderRadius: "50%",
+                    background: step.type === "tool_call" ? "#f59e0b22" : step.type === "tool_result" ? "#10b98122" : step.type === "source" ? "#6366f122" : "#ffffff11",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {step.type === "tool_call" && <Database size={10} style={{ color: "#f59e0b" }} />}
+                    {step.type === "tool_result" && <Zap size={10} style={{ color: "#10b981" }} />}
+                    {step.type === "source" && <Search size={10} style={{ color: "#6366f1" }} />}
+                    {step.type === "thinking" && <Loader2 size={10} style={{ color: "var(--muted)" }} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: "var(--fg)", fontWeight: 500 }}>{step.label}</div>
+                    {step.detail && (
+                      <div style={{ color: "var(--muted2)", marginTop: 2, fontSize: 11 }}>{step.detail}</div>
+                    )}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       )}
+
+      {/* status indicator (while streaming) */}
+      {msg.status === "thinking" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--muted2)", fontSize: 12 }}>
+          <Loader2 size={12} className="spin" /> Thinking...
+        </div>
+      )}
+      {msg.status === "tool_call" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#f59e0b", fontSize: 12 }}>
+          <Database size={12} /> Querying: {msg.toolName}
+        </div>
+      )}
+
+      {/* error */}
+      {msg.error && <div className="guard bad">{msg.error}</div>}
+
+      {/* answer text */}
+      {msg.answer && <div className="ai-answer">{msg.answer}</div>}
 
       {/* chart */}
       {showChart && (
         <div className="chart" style={{ padding: "14px 12px 8px" }}>
+          {chart.title && (
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontWeight: 500 }}>
+              {chart.title}
+            </div>
+          )}
           <ResponsiveContainer width="100%" height={240}>
-            {msg.chart === "line" ? (
+            {chart.chart_type === "line" || chart.chart_type === "area" ? (
               <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                 <defs>
                   <linearGradient id={`g${msg.id}`} x1="0" y1="0" x2="0" y2="1">
@@ -107,22 +169,22 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#1c2132" vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
+                <XAxis dataKey={xKey} tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
                 <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
                 <Tooltip contentStyle={TT} cursor={{ stroke: "#2db82d", strokeOpacity: .3 }} />
-                <Area type="monotone" dataKey="value" stroke="#2db82d" strokeWidth={2.5}
+                <Area type="monotone" dataKey={yKey} stroke="#2db82d" strokeWidth={2.5}
                   fill={`url(#g${msg.id})`} dot={{ r: 3, fill: "#2db82d" }} />
               </AreaChart>
             ) : (
               <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: chartData.length > 6 ? 44 : 4 }}>
                 <CartesianGrid stroke="#1c2132" vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d"
+                <XAxis dataKey={xKey} tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d"
                   interval={0} angle={chartData.length > 6 ? -25 : 0}
                   textAnchor={chartData.length > 6 ? "end" : "middle"}
                   height={chartData.length > 6 ? 60 : 30} />
                 <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
                 <Tooltip contentStyle={TT} cursor={{ fill: "rgba(45,184,45,.07)" }} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                <Bar dataKey={yKey} radius={[4, 4, 0, 0]}>
                   {chartData.map((_: any, i: number) => (
                     <Cell key={i} fill="#2db82d" fillOpacity={0.5 + 0.5 * (1 - i / Math.max(chartData.length, 1))} />
                   ))}
@@ -133,18 +195,8 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
         </div>
       )}
 
-      {/* show SuiteQL toggle */}
-      {!msg.blocked && !msg.error && msg.query && (
-        <>
-          <button className="toggle" onClick={() => setShowQuery(s => !s)}>
-            <Code2 size={13} />{showQuery ? "Hide" : "Show"} SuiteQL
-          </button>
-          {showQuery && <pre className="code">{msg.query}</pre>}
-        </>
-      )}
-
       {/* follow-up suggestions */}
-      {msg.suggestions && msg.suggestions.length > 0 && (
+      {msg.suggestions && msg.suggestions.length > 0 && msg.status === "done" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           <div className="suggestions-label">Follow up</div>
           <div className="suggestions">
@@ -158,192 +210,275 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
   );
 }
 
-// ─── audit modal ──────────────────────────────────────────────────────────────
-function AuditModal({ entries, onClose }: { entries: AuditEntry[]; onClose: () => void }) {
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-hd">
-          <h2>Audit Log</h2>
-          <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="modal-body">
-          {entries.length === 0
-            ? <div className="audit-empty">No queries logged yet.</div>
-            : (
-              <table className="audit-table">
-                <thead>
-                  <tr>
-                    <th>Time</th><th>Question</th><th>Mode</th><th>SuiteQL</th><th>Rows</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...entries].reverse().map(e => (
-                    <tr key={e.id}>
-                      <td style={{ whiteSpace: "nowrap", fontFamily: "var(--mono)", fontSize: 11 }}>
-                        {new Date(e.ts).toLocaleTimeString()}
-                      </td>
-                      <td><div className="audit-q">{e.question}</div></td>
-                      <td>
-                        <span className={`tag ${e.mode}`} style={{ fontSize: 9 }}>
-                          {e.mode.toUpperCase()}
-                        </span>
-                      </td>
-                      <td><div className="audit-sql">{e.query || "—"}</div></td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{e.rows || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── main page ────────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
-  const [showAudit, setShowAudit] = useState(false);
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // load from localStorage on mount
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_CHATS);
-      if (raw) setChats(JSON.parse(raw));
-      const rawAudit = localStorage.getItem(LS_AUDIT);
-      if (rawAudit) setAudit(JSON.parse(rawAudit));
-    } catch {}
-  }, []);
-
-  // persist chats
-  const persistChats = useCallback((updated: Chat[]) => {
-    setChats(updated);
-    try { localStorage.setItem(LS_CHATS, JSON.stringify(updated.slice(-30))); } catch {}
-  }, []);
-
-  const persistAudit = useCallback((updated: AuditEntry[]) => {
-    setAudit(updated);
-    try { localStorage.setItem(LS_AUDIT, JSON.stringify(updated.slice(-200))); } catch {}
-  }, []);
+  const abortRef = useRef<AbortController | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const activeChat = chats.find(c => c.id === activeId) || null;
+
+  // Load conversations from backend on mount
+  useEffect(() => {
+    listConversations()
+      .then((convs) => {
+        const loaded: Chat[] = convs.map((c) => ({
+          id: c.id,
+          backendId: c.id,
+          title: c.title,
+          messages: [],
+          updatedAt: new Date(c.updated_at).getTime(),
+        }));
+        setChats(loaded);
+      })
+      .catch(() => {
+        // Backend not reachable, start with empty state
+      });
+  }, []);
+
+  // Load messages when active conversation changes
+  useEffect(() => {
+    if (!activeId) return;
+    const chat = chats.find((c) => c.id === activeId);
+    if (!chat || chat.messages.length > 0) return; // already loaded
+
+    getConversation(chat.backendId)
+      .then((detail) => {
+        const messages: Message[] = detail.messages.map((m) => {
+          if (m.role === "user") {
+            return { id: m.id, role: "user" as const, question: m.content };
+          }
+          return {
+            id: m.id,
+            role: "assistant" as const,
+            answer: m.content,
+            status: "done" as const,
+          };
+        });
+        updateChat(activeId, (c) => ({ ...c, messages }));
+      })
+      .catch(() => {});
+  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages?.length, loading]);
 
-  function newChat() {
-    const id = uid();
-    const chat: Chat = { id, title: "New chat", messages: [], updatedAt: Date.now() };
-    persistChats([...chats, chat]);
-    setActiveId(id);
-    setInput("");
-    setTimeout(() => inputRef.current?.focus(), 50);
+  // Update a specific chat in state
+  const updateChat = useCallback((chatId: string, updater: (c: Chat) => Chat) => {
+    setChats((prev) => prev.map((c) => (c.id === chatId ? updater(c) : c)));
+  }, []);
+
+  async function newChat() {
+    try {
+      const conv = await createConversation("New chat");
+      const chat: Chat = {
+        id: conv.id,
+        backendId: conv.id,
+        title: conv.title,
+        messages: [],
+        updatedAt: Date.now(),
+      };
+      setChats((prev) => [chat, ...prev]);
+      setActiveId(chat.id);
+      setInput("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } catch (err) {
+      console.error("Failed to create conversation:", err);
+    }
   }
 
-  function clearContext() {
-    if (!activeId) return;
-    persistChats(chats.map(c => c.id === activeId ? { ...c, messages: [], updatedAt: Date.now() } : c));
-  }
+  async function deleteChat(chatId: string) {
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
 
-  // build conversation history for API (last 12 messages, text only)
-  function buildHistory(messages: Message[]) {
-    return messages.slice(-12).flatMap((m): { role: "user" | "assistant"; content: string }[] => {
-      if (m.role === "user") return [{ role: "user", content: (m as UserMsg).question }];
-      if (m.role === "assistant") {
-        const a = m as AiMsg;
-        const content = `[${(a.mode || "").toUpperCase()}] ${a.answer || ""}${a.rows?.length ? ` Returned ${a.rows.length} rows.` : ""}`;
-        return [{ role: "assistant", content }];
-      }
-      return [];
-    });
+    try {
+      await deleteConversation(chat.backendId);
+    } catch {}
+
+    setChats((prev) => prev.filter((c) => c.id !== chatId));
+    if (activeId === chatId) {
+      const remaining = chats.filter((c) => c.id !== chatId);
+      setActiveId(remaining.length > 0 ? remaining[0].id : null);
+    }
   }
 
   async function ask(question?: string) {
     const text = (question ?? input).trim();
     if (!text || loading) return;
 
-    // ensure there's an active chat
+    // Ensure there's an active chat — create one if needed
     let chatId = activeId;
-    let currentChats = chats;
     if (!chatId) {
-      const id = uid();
-      const words = text.split(" ").slice(0, 6).join(" ");
-      const newC: Chat = { id, title: words, messages: [], updatedAt: Date.now() };
-      currentChats = [...chats, newC];
-      persistChats(currentChats);
-      chatId = id;
-      setActiveId(id);
+      try {
+        const title = text.split(" ").slice(0, 6).join(" ");
+        const conv = await createConversation(title);
+        const chat: Chat = {
+          id: conv.id,
+          backendId: conv.id,
+          title,
+          messages: [],
+          updatedAt: Date.now(),
+        };
+        setChats((prev) => [chat, ...prev]);
+        chatId = chat.id;
+        setActiveId(chat.id);
+      } catch {
+        return;
+      }
     }
 
-    const chat = currentChats.find(c => c.id === chatId)!;
-
-    // auto-title from first real message
-    const isFirst = chat.messages.filter(m => m.role === "user").length === 0;
-    const title = isFirst ? text.split(" ").slice(0, 6).join(" ") : chat.title;
-
+    // Add user message + create placeholder AI message
     const userMsg: UserMsg = { id: uid(), role: "user", question: text };
-    const loadingMsg: Message = { id: uid(), role: "loading" };
-    const history = buildHistory(chat.messages);
+    const aiMsgId = uid();
+    const aiMsg: AiMsg = { id: aiMsgId, role: "assistant", answer: "", status: "thinking" };
 
-    const updated = currentChats.map(c =>
-      c.id === chatId ? { ...c, title, messages: [...c.messages, userMsg, loadingMsg], updatedAt: Date.now() } : c
-    );
-    persistChats(updated);
+    updateChat(chatId, (c) => ({
+      ...c,
+      messages: [...c.messages, userMsg, aiMsg],
+      updatedAt: Date.now(),
+    }));
     setInput("");
     setLoading(true);
 
-    try {
-      const r = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text, history }),
-      });
-      const data = await r.json();
+    // Abort controller for cancellation
+    const abort = new AbortController();
+    abortRef.current = abort;
 
-      const aiMsg: AiMsg = {
-        id: uid(), role: "assistant",
-        mode: data.mode, answer: data.answer, query: data.query,
-        guardrail: data.guardrail, blocked: data.blocked,
-        columns: data.columns, rows: data.rows, chart: data.chart,
-        suggestions: data.suggestions,
-        error: data.error,
-      };
+    const currentChatId = chatId;
+    const chat = chats.find((c) => c.id === currentChatId) || { backendId: currentChatId };
 
-      // log to audit
-      const entry: AuditEntry = {
-        id: uid(), ts: Date.now(), question: text,
-        mode: data.mode || "unknown", query: data.query || "",
-        rows: data.rows?.length || 0,
-      };
-      persistAudit([...audit, entry]);
+    // Stream the response via SSE
+    await sendMessage(
+      (chat as Chat).backendId || currentChatId,
+      text,
+      {
+        onThinking: () => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    status: "thinking",
+                    reasoning: [...((m as AiMsg).reasoning || []), { type: "thinking", label: "Analyzing your question" }],
+                  } as AiMsg
+                : m
+            ),
+          }));
+        },
+        onToolCall: (toolName) => {
+          const isKB = toolName === "search_knowledge_base";
+          const label = isKB ? "Searching knowledge base" : `Calling tool: ${toolName}`;
+          const source = isKB ? "Knowledge Base (RAG)" : "NetSuite MCP Server";
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    status: "tool_call",
+                    toolName,
+                    reasoning: [
+                      ...((m as AiMsg).reasoning || []),
+                      { type: "tool_call", label, detail: `Source: ${source}` },
+                    ],
+                  } as AiMsg
+                : m
+            ),
+          }));
+        },
+        onToolResult: (toolName, resultSummary) => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    status: "streaming",
+                    reasoning: [
+                      ...((m as AiMsg).reasoning || []),
+                      { type: "tool_result", label: `Got result from ${toolName}`, detail: resultSummary },
+                    ],
+                  } as AiMsg
+                : m
+            ),
+          }));
+        },
+        onTextChunk: (text) => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId
+                ? { ...m, answer: ((m as AiMsg).answer || "") + (((m as AiMsg).answer) ? "\n" : "") + text, status: "streaming" } as AiMsg
+                : m
+            ),
+          }));
+        },
+        onDataBlock: (chartData) => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId ? { ...m, chartBlock: chartData } as AiMsg : m
+            ),
+          }));
+        },
+        onFollowUps: (questions) => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId ? { ...m, suggestions: questions } as AiMsg : m
+            ),
+          }));
+        },
+        onTitleGenerated: (title) => {
+          updateChat(currentChatId, (c) => ({ ...c, title }));
+        },
+        onDone: () => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) => {
+              if (m.id !== aiMsgId) return m;
+              const aiM = m as AiMsg;
+              const steps = aiM.reasoning || [];
+              // Add a final "source" step summarizing where data came from
+              const hadToolCalls = steps.some((s) => s.type === "tool_call");
+              const hadKB = steps.some((s) => s.detail?.includes("Knowledge Base"));
+              const sourceLabel = hadKB
+                ? "Answer generated from Knowledge Base documentation"
+                : hadToolCalls
+                  ? "Answer generated from live NetSuite data via MCP"
+                  : "Answer generated from Claude's reasoning (no tools used)";
+              return {
+                ...aiM,
+                status: "done",
+                reasoning: [...steps, { type: "source", label: sourceLabel }],
+              } as AiMsg;
+            }),
+          }));
+        },
+        onError: (message) => {
+          updateChat(currentChatId, (c) => ({
+            ...c,
+            messages: c.messages.map((m) =>
+              m.id === aiMsgId ? { ...m, error: message, status: "done" } as AiMsg : m
+            ),
+          }));
+        },
+      },
+      abort.signal,
+    );
 
-      const final = updated.map(c =>
-        c.id === chatId
-          ? { ...c, messages: [...c.messages.filter(m => m.role !== "loading"), aiMsg], updatedAt: Date.now() }
-          : c
-      );
-      persistChats(final);
-    } catch {
-      const errMsg: AiMsg = { id: uid(), role: "assistant", error: "Request failed. Please try again." };
-      const final = updated.map(c =>
-        c.id === chatId
-          ? { ...c, messages: [...c.messages.filter(m => m.role !== "loading"), errMsg], updatedAt: Date.now() }
-          : c
-      );
-      persistChats(final);
-    }
     setLoading(false);
+    abortRef.current = null;
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -351,21 +486,50 @@ export default function ChatPage() {
   }
 
   function startListening() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.lang = "en-US";
-    rec.onstart = () => setListening(true);
-    rec.onend = () => setListening(false);
-    rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput(transcript);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    };
-    rec.onerror = () => setListening(false);
-    rec.start();
+    if (listening) {
+      // Stop recording
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then((stream) => {
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+        mediaRecorderRef.current = mediaRecorder;
+        const chunks: Blob[] = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          setListening(false);
+          stream.getTracks().forEach((t) => t.stop());
+
+          const audioBlob = new Blob(chunks, { type: "audio/webm;codecs=opus" });
+          try {
+            const text = await transcribeAudio(audioBlob);
+            if (text && !text.startsWith("[MOCK]") && !text.startsWith("Transcription failed")) {
+              setInput(text);
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }
+          } catch (err) {
+            console.error("Transcription failed:", err);
+          }
+        };
+
+        mediaRecorder.onerror = () => {
+          setListening(false);
+          stream.getTracks().forEach((t) => t.stop());
+        };
+
+        mediaRecorder.start();
+        setListening(true);
+      })
+      .catch(() => {
+        // Microphone permission denied or not available
+        setListening(false);
+      });
   }
 
   return (
@@ -384,22 +548,29 @@ export default function ChatPage() {
               No chats yet
             </div>
           )}
-          {[...chats].reverse().map(chat => (
-            <button
+          {chats.map(chat => (
+            <div
               key={chat.id}
               className={`ch-item${chat.id === activeId ? " ch-active" : ""}`}
               onClick={() => setActiveId(chat.id)}
+              style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
             >
-              <span className="ch-title">{chat.title}</span>
+              <span className="ch-title" style={{ flex: 1 }}>{chat.title}</span>
               <span className="ch-time">{elapsed(chat.updatedAt)}</span>
-            </button>
+              <button
+                className="ch-delete-btn"
+                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(chat.id); }}
+                title="Delete chat"
+                style={{
+                  background: "none", border: "none", color: "var(--muted2)",
+                  cursor: "pointer", padding: "2px 4px", marginLeft: 4,
+                  borderRadius: 4, display: "flex", alignItems: "center",
+                }}
+              >
+                <X size={13} />
+              </button>
+            </div>
           ))}
-        </div>
-
-        <div className="ch-footer">
-          <button className="audit-btn" onClick={() => setShowAudit(true)}>
-            <ClipboardList size={13} /> Audit Log
-          </button>
         </div>
       </aside>
 
@@ -416,9 +587,6 @@ export default function ChatPage() {
                   {activeChat.messages.filter(m => m.role === "user").length !== 1 ? "s" : ""} in this session
                 </div>
               </div>
-              <button className="clear-ctx-btn" onClick={clearContext}>
-                <RotateCcw size={13} /> Clear context
-              </button>
             </div>
 
             {/* messages */}
@@ -428,20 +596,6 @@ export default function ChatPage() {
                   return (
                     <div key={msg.id} className="msg-user">
                       <div className="msg-user-bubble">{(msg as UserMsg).question}</div>
-                    </div>
-                  );
-                }
-                if (msg.role === "loading") {
-                  return (
-                    <div key={msg.id} className="msg-ai">
-                      <div className="ai-header">
-                        <div className="ai-avatar">TS</div>
-                      </div>
-                      <div className="ai-body">
-                        <div className="ai-loading">
-                          <span /><span /><span />
-                        </div>
-                      </div>
                     </div>
                   );
                 }
@@ -502,7 +656,6 @@ export default function ChatPage() {
                 ))}
               </div>
             </div>
-            {/* floating input bar at bottom of empty state */}
             <div className="input-bar">
               <div className="input-row">
                 <div className="input-wrap">
@@ -533,8 +686,50 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* audit modal */}
-      {showAudit && <AuditModal entries={audit} onClose={() => setShowAudit(false)} />}
+      {/* ── delete confirmation dialog ── */}
+      {confirmDeleteId && (
+        <div
+          className="modal-overlay"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 380, padding: 24 }}
+          >
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: "var(--fg)" }}>Delete conversation?</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--muted)" }}>
+                This will permanently delete this conversation and all its messages. This action cannot be undone.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                style={{
+                  padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border)",
+                  background: "transparent", color: "var(--fg)", cursor: "pointer", fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteChat(confirmDeleteId);
+                  setConfirmDeleteId(null);
+                }}
+                style={{
+                  padding: "8px 16px", borderRadius: 6, border: "none",
+                  background: "#ef4444", color: "#fff", cursor: "pointer", fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

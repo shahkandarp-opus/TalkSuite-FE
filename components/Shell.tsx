@@ -1,11 +1,19 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Sparkles, LayoutDashboard, Globe2 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Sparkles, LayoutDashboard, Globe2, LogOut, User } from "lucide-react";
+import { logout, getStoredUser } from "@/lib/api";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
   const isChatPage = path === "/";
+  const user = getStoredUser();
+
+  function handleLogout() {
+    logout();
+    router.push("/login");
+  }
 
   return (
     <div className="shell">
@@ -39,13 +47,36 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="sidebar-footer">
-          <div className="ns-pill">
-            <div className="ns-dot" />
-            <div className="ns-info">
-              <div className="ns-info-label">NetSuite</div>
-              <div className="ns-info-val">Demo Mode</div>
+          {/* User info */}
+          {user && (
+            <div className="ns-pill" style={{ marginBottom: 8 }}>
+              <div style={{
+                width: 24, height: 24, borderRadius: "50%",
+                background: "#2db82d22", display: "flex",
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <User size={12} style={{ color: "#2db82d" }} />
+              </div>
+              <div className="ns-info">
+                <div className="ns-info-label">{user.name}</div>
+                <div className="ns-info-val">{user.role.toUpperCase()}</div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Logout button */}
+          <button
+            onClick={handleLogout}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 10px", background: "none",
+              border: "1px solid var(--border)", borderRadius: 6,
+              color: "var(--muted)", cursor: "pointer", fontSize: 12,
+            }}
+          >
+            <LogOut size={13} />
+            Sign Out
+          </button>
         </div>
       </aside>
 
