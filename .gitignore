@@ -1,1 +1,17 @@
-node_modules
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+
+# environment files (contain secrets/config)
+.env.local
+.env*.local
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# bucket policy (contains account-specific ARNs)
+bucket-policy.json
