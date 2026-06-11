@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Globe2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { login } from "@/lib/api";
 
 export default function LoginPage() {
@@ -29,24 +29,22 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center",
-      justifyContent: "center", background: "var(--bg)",
+      justifyContent: "center", background: "#f5f5f5",
     }}>
       <div style={{
-        width: 380, padding: 32, background: "var(--card)",
-        border: "1px solid var(--border)", borderRadius: 12,
+        width: 400, padding: 36, background: "#ffffff",
+        border: "1px solid #e0e4e5",
       }}>
-        {/* Brand */}
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: "50%",
-            background: "linear-gradient(135deg, #2db82d, #1a8a1a)",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            marginBottom: 12,
-          }}>
-            <Globe2 size={24} color="#fff" />
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 600, color: "var(--fg)" }}>TalkSuite</div>
-          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+        {/* Opus Brand Header */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/Opus_Inspection.png"
+            alt="Opus Inspection"
+            style={{ height: 50, marginBottom: 16 }}
+          />
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#004851" }}>TalkSuite</div>
+          <div style={{ fontSize: 12, color: "#54565a", marginTop: 4 }}>
             Sign in to access your NetSuite AI assistant
           </div>
         </div>
@@ -54,8 +52,8 @@ export default function LoginPage() {
         {/* Error */}
         {error && (
           <div style={{
-            padding: "10px 12px", background: "#ef444420", border: "1px solid #ef444440",
-            borderRadius: 6, color: "#ef4444", fontSize: 13, marginBottom: 16,
+            padding: "10px 12px", background: "#ef444410", border: "1px solid #ef444440",
+            color: "#ef4444", fontSize: 13, marginBottom: 16,
           }}>
             {error}
           </div>
@@ -64,7 +62,7 @@ export default function LoginPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 6 }}>
+            <label style={{ fontSize: 12, color: "#54565a", display: "block", marginBottom: 6 }}>
               Email
             </label>
             <input
@@ -74,14 +72,15 @@ export default function LoginPage() {
               placeholder="you@company.com"
               required
               style={{
-                width: "100%", padding: "10px 12px", background: "var(--bg)",
-                border: "1px solid var(--border)", borderRadius: 6,
-                color: "var(--fg)", fontSize: 14, outline: "none",
+                width: "100%", padding: "10px 12px", background: "#f5f5f5",
+                border: "1px solid #e0e4e5",
+                color: "#131e29", fontSize: 14, outline: "none",
+                fontFamily: "'Brokman', sans-serif",
               }}
             />
           </div>
           <div>
-            <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 6 }}>
+            <label style={{ fontSize: 12, color: "#54565a", display: "block", marginBottom: 6 }}>
               Password
             </label>
             <input
@@ -91,9 +90,10 @@ export default function LoginPage() {
               placeholder="••••••••"
               required
               style={{
-                width: "100%", padding: "10px 12px", background: "var(--bg)",
-                border: "1px solid var(--border)", borderRadius: 6,
-                color: "var(--fg)", fontSize: 14, outline: "none",
+                width: "100%", padding: "10px 12px", background: "#f5f5f5",
+                border: "1px solid #e0e4e5",
+                color: "#131e29", fontSize: 14, outline: "none",
+                fontFamily: "'Brokman', sans-serif",
               }}
             />
           </div>
@@ -101,11 +101,12 @@ export default function LoginPage() {
             type="submit"
             disabled={loading || !email || !password}
             style={{
-              marginTop: 6, padding: "12px 16px", borderRadius: 6,
-              border: "none", background: "#2db82d", color: "#fff",
+              marginTop: 6, padding: "12px 16px",
+              border: "none", background: "#004851", color: "#ffffff",
               fontSize: 14, fontWeight: 500, cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               opacity: loading ? 0.7 : 1,
+              fontFamily: "'Brokman', sans-serif",
             }}
           >
             {loading && <Loader2 size={14} className="spin" />}
@@ -115,11 +116,10 @@ export default function LoginPage() {
 
         {/* Demo credentials hint */}
         <div style={{
-          marginTop: 20, padding: "10px 12px", background: "var(--bg)",
-          borderRadius: 6, fontSize: 11, color: "var(--muted2)",
-          fontFamily: "var(--mono)",
+          marginTop: 20, padding: "10px 12px", background: "#f5f5f5",
+          fontSize: 11, color: "#8a8d91",
         }}>
-          <div style={{ marginBottom: 4, fontWeight: 500, color: "var(--muted)" }}>Demo accounts:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500, color: "#54565a" }}>Demo accounts:</div>
           <div>admin: test@talksuite.dev / admin123</div>
           <div>finance: finance@talksuite.dev / finance123</div>
           <div>inventory: inventory@talksuite.dev / inventory123</div>

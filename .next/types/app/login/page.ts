@@ -1,4 +1,4 @@
-// File: C:\Users\Manish.Rajwani\Documents\AI Hackathon\TalkSuite-Backend\TalkSuite-FE\app\login\page.tsx
+// File: C:\Users\Manish.Rajwani\Documents\AI Hackathon\TalkSuite-FE\app\login\page.tsx
 import * as entry from '../../../../app/login/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

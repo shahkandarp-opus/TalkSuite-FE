@@ -51,8 +51,8 @@ type Chat = {
 };
 
 const TT = {
-  background: "#0e1118", border: "1px solid #242b3d", borderRadius: 8,
-  color: "#e6e8f0", fontFamily: "IBM Plex Mono, monospace", fontSize: 12,
+  background: "#ffffff", border: "1px solid #ccd3d4", borderRadius: 0,
+  color: "#131e29", fontFamily: "'Brokman', sans-serif", fontSize: 12,
 };
 const fmt = (v: any) => typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : v;
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -112,12 +112,12 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: i < msg.reasoning!.length - 1 ? 8 : 0 }}>
                   <div style={{
                     minWidth: 20, height: 20, borderRadius: "50%",
-                    background: step.type === "tool_call" ? "#f59e0b22" : step.type === "tool_result" ? "#10b98122" : step.type === "source" ? "#6366f122" : "#ffffff11",
+                    background: step.type === "tool_call" ? "#FF820022" : step.type === "tool_result" ? "#4c9c2e22" : step.type === "source" ? "#004a9822" : "#f0f4f511",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
-                    {step.type === "tool_call" && <Database size={10} style={{ color: "#f59e0b" }} />}
-                    {step.type === "tool_result" && <Zap size={10} style={{ color: "#10b981" }} />}
-                    {step.type === "source" && <Search size={10} style={{ color: "#6366f1" }} />}
+                    {step.type === "tool_call" && <Database size={10} style={{ color: "#FF8200" }} />}
+                    {step.type === "tool_result" && <Zap size={10} style={{ color: "#4c9c2e" }} />}
+                    {step.type === "source" && <Search size={10} style={{ color: "#004a98" }} />}
                     {step.type === "thinking" && <Loader2 size={10} style={{ color: "var(--muted)" }} />}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -140,7 +140,7 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
         </div>
       )}
       {msg.status === "tool_call" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#f59e0b", fontSize: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#FF8200", fontSize: 12 }}>
           <Database size={12} /> Querying: {msg.toolName}
         </div>
       )}
@@ -164,29 +164,29 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
               <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                 <defs>
                   <linearGradient id={`g${msg.id}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2db82d" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#2db82d" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#004851" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#004851" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#1c2132" vertical={false} />
-                <XAxis dataKey={xKey} tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                <Tooltip contentStyle={TT} cursor={{ stroke: "#2db82d", strokeOpacity: .3 }} />
-                <Area type="monotone" dataKey={yKey} stroke="#2db82d" strokeWidth={2.5}
-                  fill={`url(#g${msg.id})`} dot={{ r: 3, fill: "#2db82d" }} />
+                <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                <XAxis dataKey={xKey} tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                <Tooltip contentStyle={TT} cursor={{ stroke: "#004851", strokeOpacity: .3 }} />
+                <Area type="monotone" dataKey={yKey} stroke="#004851" strokeWidth={2.5}
+                  fill={`url(#g${msg.id})`} dot={{ r: 3, fill: "#004851" }} />
               </AreaChart>
             ) : (
               <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: chartData.length > 6 ? 44 : 4 }}>
-                <CartesianGrid stroke="#1c2132" vertical={false} />
-                <XAxis dataKey={xKey} tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d"
+                <CartesianGrid stroke="#e0e4e5" vertical={false} />
+                <XAxis dataKey={xKey} tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4"
                   interval={0} angle={chartData.length > 6 ? -25 : 0}
                   textAnchor={chartData.length > 6 ? "end" : "middle"}
                   height={chartData.length > 6 ? 60 : 30} />
-                <YAxis tick={{ fill: "#717a96", fontSize: 11 }} stroke="#242b3d" />
-                <Tooltip contentStyle={TT} cursor={{ fill: "rgba(45,184,45,.07)" }} />
+                <YAxis tick={{ fill: "#54565a", fontSize: 11 }} stroke="#ccd3d4" />
+                <Tooltip contentStyle={TT} cursor={{ fill: "rgba(0,72,81,.07)" }} />
                 <Bar dataKey={yKey} radius={[4, 4, 0, 0]}>
                   {chartData.map((_: any, i: number) => (
-                    <Cell key={i} fill="#2db82d" fillOpacity={0.5 + 0.5 * (1 - i / Math.max(chartData.length, 1))} />
+                    <Cell key={i} fill="#004851" fillOpacity={0.5 + 0.5 * (1 - i / Math.max(chartData.length, 1))} />
                   ))}
                 </Bar>
               </BarChart>
@@ -644,8 +644,11 @@ export default function ChatPage() {
           /* welcome / empty state */
           <>
             <div className="chat-welcome">
-              <div className="cw-logo">🌐</div>
-              <div className="cw-title">Opus AI</div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 4 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/Opus_Inspection.png" alt="Opus Inspection" style={{ height: 48 }} />
+                <div className="cw-title" style={{ marginBottom: 0 }}>TalkSuite</div>
+              </div>
               <div className="cw-sub">
                 Opus Inspection's NetSuite assistant. Ask about invoices, inventory,
                 customers, or how-to guidance — in plain English, no training needed.

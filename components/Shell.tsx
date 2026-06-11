@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Sparkles, LayoutDashboard, Globe2, LogOut, User } from "lucide-react";
+import { Sparkles, LayoutDashboard, LogOut, User } from "lucide-react";
 import { logout, getStoredUser } from "@/lib/api";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -19,11 +19,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="logo"><Globe2 size={18} /></div>
-          <div className="brand-text">
-            <div className="brand-name">TalkSuite</div>
-            <div className="brand-sub">OPUS INSPECTION</div>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/Opus_Inspection.png" alt="Opus Inspection" className="brand-logo-img" />
         </div>
 
         <div className="nav-section">
@@ -52,10 +49,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <div className="ns-pill" style={{ marginBottom: 8 }}>
               <div style={{
                 width: 24, height: 24, borderRadius: "50%",
-                background: "#2db82d22", display: "flex",
+                background: "rgba(0,72,81,.1)", display: "flex",
                 alignItems: "center", justifyContent: "center",
               }}>
-                <User size={12} style={{ color: "#2db82d" }} />
+                <User size={12} style={{ color: "#004851" }} />
               </div>
               <div className="ns-info">
                 <div className="ns-info-label">{user.name}</div>
