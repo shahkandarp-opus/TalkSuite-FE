@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "TalkSuite — NetSuite AI by Opus Inspection",
   description: "Opus Inspection's plain-English NetSuite assistant — instant answers for Finance, Sales, and Inventory.",
   icons: {
-    icon: "/opus-logo1.png",
+    icon: "/Opus_Inspection.png",
   },
 };
 
