@@ -13,8 +13,9 @@ import {
 export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const isChatPage = path === "/";
-  const isAdminPage = path === "/admin";
+  const normalizedPath = path !== "/" ? path.replace(/\/$/, "") : path;
+  const isChatPage = normalizedPath === "/";
+  const isAdminPage = normalizedPath === "/admin";
   const user = getStoredUser();
   const accounts = getStoredAccounts();
   const activeAccountId = getActiveAccountId();
@@ -82,7 +83,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <div className="nav-section">
             <span className="nav-label">Administration</span>
             <nav className="nav">
-              <Link href="/admin" className={path === "/admin" ? "active" : ""}>
+              <Link href="/admin" className={isAdminPage ? "active" : ""}>
                 <Shield size={16} />
                 <span>Admin Portal</span>
               </Link>

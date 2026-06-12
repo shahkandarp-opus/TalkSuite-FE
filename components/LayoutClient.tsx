@@ -7,7 +7,8 @@ const PUBLIC_ROUTES = ["/login"];
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
+  const normalized = pathname !== "/" ? pathname.replace(/\/$/, "") : pathname;
+  const isPublicRoute = PUBLIC_ROUTES.includes(normalized);
 
   return (
     <AuthGuard>

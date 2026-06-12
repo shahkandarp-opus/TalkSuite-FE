@@ -11,7 +11,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    const isPublic = PUBLIC_ROUTES.includes(pathname);
+    // Normalize trailing slash (Next trailingSlash:true yields "/login/")
+    const normalized = pathname !== "/" ? pathname.replace(/\/$/, "") : pathname;
+    const isPublic = PUBLIC_ROUTES.includes(normalized);
 
     if (!isPublic && !isAuthenticated()) {
       router.replace("/login");
