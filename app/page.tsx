@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -41,6 +43,50 @@ type ReasoningStep = {
 };
 type UserMsg = { id: string; role: "user"; question: string };
 type Message = UserMsg | AiMsg;
+
+// ─── parser for stored answers (extract chart + followups from raw text) ──────
+function parseStoredAnswer(raw: string): {
+  text: string;
+  chartBlock?: ChartBlock;
+  suggestions?: string[];
+} {
+  let text = raw;
+  let chartBlock: ChartBlock | undefined;
+  let suggestions: string[] | undefined;
+
+  // Extract ```chartdata ... ``` block
+  const chartMatch = text.match(/```chartdata\s*([\s\S]*?)```/);
+  if (chartMatch) {
+    try {
+      chartBlock = JSON.parse(chartMatch[1].trim());
+    } catch {}
+    text = text.replace(chartMatch[0], "").trim();
+  }
+
+  // Extract ```followups ... ``` block
+  const followMatch = text.match(/```followups\s*([\s\S]*?)```/);
+  if (followMatch) {
+    try {
+      suggestions = JSON.parse(followMatch[1].trim());
+    } catch {}
+    text = text.replace(followMatch[0], "").trim();
+  }
+
+  // Also handle <followups>...</followups> tag format
+  const followTag = text.match(/<followups>\s*([\s\S]*?)<\/followups>/);
+  if (followTag) {
+    try {
+      suggestions = JSON.parse(followTag[1].trim());
+    } catch {}
+    text = text.replace(followTag[0], "").trim();
+  }
+
+  // Strip <thinking>...</thinking> tags
+  text = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, "").trim();
+
+  return { text, chartBlock, suggestions };
+}
+
 
 type Chat = {
   id: string;         // frontend ID
@@ -149,7 +195,7 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
       {msg.error && <div className="guard bad">{msg.error}</div>}
 
       {/* answer text */}
-      {msg.answer && <div className="ai-answer">{msg.answer}</div>}
+      {msg.answer && <div className="ai-answer"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.answer}</ReactMarkdown></div>}
 
       {/* chart */}
       {showChart && (
@@ -255,10 +301,13 @@ export default function ChatPage() {
           if (m.role === "user") {
             return { id: m.id, role: "user" as const, question: m.content };
           }
+          const parsed = parseStoredAnswer(m.content);
           return {
             id: m.id,
             role: "assistant" as const,
-            answer: m.content,
+            answer: parsed.text,
+            chartBlock: parsed.chartBlock,
+            suggestions: parsed.suggestions,
             status: "done" as const,
           };
         });
