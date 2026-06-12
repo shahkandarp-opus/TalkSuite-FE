@@ -14,6 +14,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const isChatPage = path === "/";
+  const isAdminPage = path === "/admin";
   const user = getStoredUser();
   const accounts = getStoredAccounts();
   const activeAccountId = getActiveAccountId();
@@ -38,7 +39,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <img src="/Opus_Inspection.png" alt="Opus Inspection" className="brand-logo-img" />
         </div>
 
-        {/* Account selector — only shown when the user has more than one account */}
+        {/* Account selector — shown when the user has >1 account. Disabled on the
+            admin page (account context isn't relevant there, and switching would
+            trigger a reload that breaks the /admin deep route on static hosting). */}
         {accounts.length > 1 && (
           <div className="nav-section">
             <span className="nav-label">NetSuite Account</span>
@@ -47,10 +50,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <select
                 value={activeAccountId || ""}
                 onChange={handleAccountChange}
+                disabled={isAdminPage}
+                title={isAdminPage ? "Switch account from the Ask AI page" : undefined}
                 style={{
                   width: "100%", padding: "6px 8px", borderRadius: 6,
                   border: "1px solid var(--border)", fontSize: 12,
-                  background: "#fff", color: "#1a1a1a", cursor: "pointer",
+                  background: isAdminPage ? "#f1f5f9" : "#fff",
+                  color: isAdminPage ? "#9ca3af" : "#1a1a1a",
+                  cursor: isAdminPage ? "not-allowed" : "pointer",
                 }}
               >
                 {accounts.map((a) => (
