@@ -9,10 +9,11 @@ import {
 import {
   Plus, Database, BookOpen, CircleHelp, Mic, MicOff,
   Send, X, Sparkles, Loader2, ChevronDown, Zap, Search,
+  MoreVertical, Pencil, Trash2,
 } from "lucide-react";
 import {
   createConversation, listConversations, getConversation,
-  deleteConversation, sendMessage, healthCheck, transcribeAudio,
+  deleteConversation, renameConversation, sendMessage, healthCheck, transcribeAudio,
   type Conversation,
 } from "@/lib/api";
 
@@ -263,6 +264,10 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -321,6 +326,14 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages?.length, loading]);
 
+  // Close menu dropdown when clicking outside
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const handler = () => setMenuOpenId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuOpenId]);
+
   // Update a specific chat in state
   const updateChat = useCallback((chatId: string, updater: (c: Chat) => Chat) => {
     setChats((prev) => prev.map((c) => (c.id === chatId ? updater(c) : c)));
@@ -358,6 +371,26 @@ export default function ChatPage() {
       const remaining = chats.filter((c) => c.id !== chatId);
       setActiveId(remaining.length > 0 ? remaining[0].id : null);
     }
+  }
+
+  async function renameChat(chatId: string, newTitle: string) {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+
+    setRenameLoading(true);
+    try {
+      const updated = await renameConversation(chat.backendId, trimmed);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, title: updated.title } : c))
+      );
+    } catch (err) {
+      console.error("Failed to rename conversation:", err);
+    }
+    setRenameLoading(false);
+    setRenamingId(null);
+    setRenameValue("");
   }
 
   async function ask(question?: string) {
@@ -601,23 +634,63 @@ export default function ChatPage() {
             <div
               key={chat.id}
               className={`ch-item${chat.id === activeId ? " ch-active" : ""}`}
-              onClick={() => setActiveId(chat.id)}
-              style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+              onClick={() => { setActiveId(chat.id); setMenuOpenId(null); }}
+              style={{ display: "flex", alignItems: "center", cursor: "pointer", position: "relative" }}
             >
               <span className="ch-title" style={{ flex: 1 }}>{chat.title}</span>
               <span className="ch-time">{elapsed(chat.updatedAt)}</span>
               <button
                 className="ch-delete-btn"
-                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(chat.id); }}
-                title="Delete chat"
+                onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === chat.id ? null : chat.id); }}
+                title="Options"
                 style={{
                   background: "none", border: "none", color: "var(--muted2)",
                   cursor: "pointer", padding: "2px 4px", marginLeft: 4,
                   borderRadius: 4, display: "flex", alignItems: "center",
                 }}
               >
-                <X size={13} />
+                <MoreVertical size={13} />
               </button>
+              {menuOpenId === chat.id && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute", right: 0, top: "100%", zIndex: 100,
+                    background: "var(--card)", border: "1px solid var(--border)",
+                    borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    minWidth: 130, overflow: "hidden",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setRenamingId(chat.id);
+                      setRenameValue(chat.title);
+                      setMenuOpenId(null);
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, width: "100%",
+                      padding: "8px 12px", border: "none", background: "none",
+                      color: "var(--fg)", fontSize: 12, cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <Pencil size={12} /> Rename
+                  </button>
+                  <button
+                    onClick={() => { setConfirmDeleteId(chat.id); setMenuOpenId(null); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, width: "100%",
+                      padding: "8px 12px", border: "none", background: "none",
+                      color: "#ef4444", fontSize: 12, cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -777,6 +850,72 @@ export default function ChatPage() {
                 }}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── rename confirmation dialog ── */}
+      {renamingId && (
+        <div
+          className="modal-overlay"
+          onClick={() => { if (!renameLoading) { setRenamingId(null); setRenameValue(""); } }}
+        >
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 380, padding: 24 }}
+          >
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: "var(--fg)" }}>Rename conversation</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--muted)" }}>
+                Enter a new name for this conversation.
+              </p>
+            </div>
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameValue.trim() && !renameLoading) renameChat(renamingId, renameValue);
+                if (e.key === "Escape" && !renameLoading) { setRenamingId(null); setRenameValue(""); }
+              }}
+              disabled={renameLoading}
+              placeholder="Conversation name"
+              style={{
+                width: "100%", padding: "10px 12px", borderRadius: 6,
+                border: "1px solid var(--border)", outline: "none",
+                background: "var(--bg)", color: "var(--fg)", fontSize: 13,
+                fontFamily: "inherit", boxSizing: "border-box",
+                opacity: renameLoading ? 0.6 : 1,
+              }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                onClick={() => { setRenamingId(null); setRenameValue(""); }}
+                disabled={renameLoading}
+                style={{
+                  padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border)",
+                  background: "transparent", color: "var(--fg)", cursor: renameLoading ? "not-allowed" : "pointer", fontSize: 13,
+                  opacity: renameLoading ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => renameChat(renamingId, renameValue)}
+                disabled={!renameValue.trim() || renameLoading}
+                style={{
+                  padding: "8px 16px", borderRadius: 6, border: "none",
+                  background: renameValue.trim() && !renameLoading ? "var(--accent)" : "#ccc",
+                  color: "#fff", cursor: renameValue.trim() && !renameLoading ? "pointer" : "not-allowed",
+                  fontSize: 13, fontWeight: 500,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {renameLoading && <Loader2 size={13} className="spin" />}
+                {renameLoading ? "Updating..." : "Update"}
               </button>
             </div>
           </div>

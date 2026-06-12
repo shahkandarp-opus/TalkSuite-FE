@@ -129,6 +129,16 @@ export async function deleteConversation(id: string): Promise<void> {
   if (!res.ok && res.status !== 204) throw new Error(`Failed to delete: ${res.status}`);
 }
 
+export async function renameConversation(id: string, title: string): Promise<Conversation> {
+  const res = await fetch(`${BACKEND_URL}/conversations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`Failed to rename conversation: ${res.status}`);
+  return res.json();
+}
+
 // ─── Message Streaming (SSE) ──────────────────────────────────────────────────
 
 export type StreamCallbacks = {
