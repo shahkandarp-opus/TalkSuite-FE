@@ -113,17 +113,6 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
-
-        {/* Demo credentials hint */}
-        <div style={{
-          marginTop: 20, padding: "10px 12px", background: "#f5f5f5",
-          fontSize: 11, color: "#8a8d91",
-        }}>
-          <div style={{ marginBottom: 4, fontWeight: 500, color: "#54565a" }}>Demo accounts:</div>
-          <div>admin: test@talksuite.dev / admin123</div>
-          <div>finance: finance@talksuite.dev / finance123</div>
-          <div>inventory: inventory@talksuite.dev / inventory123</div>
-        </div>
       </div>
     </div>
   );

@@ -9,10 +9,11 @@ import {
 import {
   Plus, Database, BookOpen, CircleHelp, Mic, MicOff,
   Send, X, Sparkles, Loader2, ChevronDown, Zap, Search,
+  MoreVertical, Pencil, Trash2,
 } from "lucide-react";
 import {
   createConversation, listConversations, getConversation,
-  deleteConversation, sendMessage, healthCheck, transcribeAudio,
+  deleteConversation, renameConversation, sendMessage, healthCheck, transcribeAudio,
   type Conversation,
 } from "@/lib/api";
 
@@ -264,17 +265,26 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   const activeChat = chats.find(c => c.id === activeId) || null;
 
   // Load conversations from backend on mount
   useEffect(() => {
+    setConversationsLoading(true);
     listConversations()
       .then((convs) => {
         const loaded: Chat[] = convs.map((c) => ({
@@ -284,7 +294,11 @@ export default function ChatPage() {
           messages: [],
           updatedAt: new Date(c.updated_at).getTime(),
         }));
-        setChats(loaded);
+        // Merge: keep any local-only chats (no backendId) that were created while loading
+        setChats((prev) => {
+          const localChats = prev.filter((c) => !c.backendId);
+          return [...localChats, ...loaded];
+        });
       })
       .catch(() => {
         // Backend not reachable, start with empty state
@@ -297,7 +311,9 @@ export default function ChatPage() {
     if (!activeId) return;
     const chat = chats.find((c) => c.id === activeId);
     if (!chat || chat.messages.length > 0) return; // already loaded
+    if (!chat.backendId) return; // local-only chat, nothing to fetch
 
+    setMessagesLoading(true);
     setMessagesLoading(true);
     getConversation(chat.backendId)
       .then((detail) => {
@@ -319,6 +335,8 @@ export default function ChatPage() {
       })
       .catch(() => {})
       .finally(() => setMessagesLoading(false));
+      .catch(() => {})
+      .finally(() => setMessagesLoading(false));
   }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // scroll to bottom on new messages
@@ -326,36 +344,45 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeChat?.messages?.length, loading]);
 
+  // Close menu dropdown when clicking outside
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const handler = () => setMenuOpenId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuOpenId]);
+
   // Update a specific chat in state
   const updateChat = useCallback((chatId: string, updater: (c: Chat) => Chat) => {
     setChats((prev) => prev.map((c) => (c.id === chatId ? updater(c) : c)));
   }, []);
 
   async function newChat() {
-    try {
-      const conv = await createConversation("New chat");
-      const chat: Chat = {
-        id: conv.id,
-        backendId: conv.id,
-        title: conv.title,
-        messages: [],
-        updatedAt: Date.now(),
-      };
-      setChats((prev) => [chat, ...prev]);
-      setActiveId(chat.id);
-      setInput("");
-      setTimeout(() => inputRef.current?.focus(), 50);
-    } catch (err) {
-      console.error("Failed to create conversation:", err);
-    }
+    // Create a local-only chat — no database call until the first message
+    const localId = uid();
+    const chat: Chat = {
+      id: localId,
+      backendId: "",  // empty = not yet persisted
+      title: "New chat",
+      messages: [],
+      updatedAt: Date.now(),
+    };
+    setChats((prev) => [chat, ...prev]);
+    setActiveId(chat.id);
+    setInput("");
+    setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   async function deleteChat(chatId: string) {
     const chat = chats.find((c) => c.id === chatId);
     if (!chat) return;
 
+    setDeleteLoading(true);
     try {
-      await deleteConversation(chat.backendId);
+      // Only call API if the chat was persisted to the backend
+      if (chat.backendId) {
+        await deleteConversation(chat.backendId);
+      }
     } catch {}
 
     setChats((prev) => prev.filter((c) => c.id !== chatId));
@@ -363,15 +390,51 @@ export default function ChatPage() {
       const remaining = chats.filter((c) => c.id !== chatId);
       setActiveId(remaining.length > 0 ? remaining[0].id : null);
     }
+    setDeleteLoading(false);
+    setConfirmDeleteId(null);
+  }
+
+  async function renameChat(chatId: string, newTitle: string) {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+
+    setRenameLoading(true);
+    try {
+      if (chat.backendId) {
+        const updated = await renameConversation(chat.backendId, trimmed);
+        setChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, title: updated.title } : c))
+        );
+      } else {
+        // Local-only chat, just update title locally
+        setChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, title: trimmed } : c))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to rename conversation:", err);
+    }
+    setRenameLoading(false);
+    setRenamingId(null);
+    setRenameValue("");
   }
 
   async function ask(question?: string) {
     const text = (question ?? input).trim();
     if (!text || loading) return;
 
-    // Ensure there's an active chat — create one if needed
+    // Set loading immediately to prevent duplicate submissions
+    setLoading(true);
+    setInput("");
+
+    // Ensure there's an active chat with a backend ID
     let chatId = activeId;
-    if (!chatId) {
+    const currentChat = chatId ? chats.find((c) => c.id === chatId) : null;
+
+    if (!chatId || !currentChat) {
+      // No active chat — create one in the database
       try {
         const title = text.split(" ").slice(0, 6).join(" ");
         const conv = await createConversation(title);
@@ -386,6 +449,25 @@ export default function ChatPage() {
         chatId = chat.id;
         setActiveId(chat.id);
       } catch {
+        setLoading(false);
+        return;
+      }
+    } else if (!currentChat.backendId) {
+      // Active chat exists locally but not persisted — create it now
+      try {
+        const title = text.split(" ").slice(0, 6).join(" ");
+        const conv = await createConversation(title);
+        // Update the local chat with the real backend ID
+        updateChat(chatId, (c) => ({
+          ...c,
+          backendId: conv.id,
+          title,
+        }));
+        // Update local reference for the rest of this function
+        currentChat.backendId = conv.id;
+        currentChat.title = title;
+      } catch {
+        setLoading(false);
         return;
       }
     }
@@ -400,19 +482,17 @@ export default function ChatPage() {
       messages: [...c.messages, userMsg, aiMsg],
       updatedAt: Date.now(),
     }));
-    setInput("");
-    setLoading(true);
 
     // Abort controller for cancellation
     const abort = new AbortController();
     abortRef.current = abort;
 
     const currentChatId = chatId;
-    const chat = chats.find((c) => c.id === currentChatId) || { backendId: currentChatId };
+    const backendId = currentChat?.backendId || currentChatId;
 
     // Stream the response via SSE
     await sendMessage(
-      (chat as Chat).backendId || currentChatId,
+      backendId,
       text,
       {
         onThinking: () => {
@@ -541,11 +621,82 @@ export default function ChatPage() {
 
   function startListening() {
     if (listening) {
-      // Stop recording
-      mediaRecorderRef.current?.stop();
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+      }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
       return;
     }
 
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = "en-US";
+      recognition.interimResults = true;
+      recognition.continuous = true;
+
+      let finalTranscript = "";
+      let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const resetSilenceTimer = () => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          // No speech detected for 2 seconds — auto stop
+          recognition.stop();
+        }, 2000);
+      };
+
+      recognition.onresult = (event: any) => {
+        let interim = "";
+        finalTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+        setInput(finalTranscript + interim);
+        // Reset silence timer on every new result
+        resetSilenceTimer();
+      };
+
+      recognition.onend = () => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        setListening(false);
+        recognitionRef.current = null;
+        if (finalTranscript) {
+          setInput(finalTranscript);
+        }
+        setTimeout(() => inputRef.current?.focus(), 50);
+      };
+
+      recognition.onerror = (event: any) => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        console.error("Speech recognition error:", event.error);
+        setListening(false);
+        recognitionRef.current = null;
+
+        if (event.error === "network" || event.error === "service-not-allowed") {
+          startAwsTranscription();
+        }
+      };
+
+      recognition.start();
+      setListening(true);
+      // Start the initial silence timer (stops if user never speaks)
+      resetSilenceTimer();
+    } else {
+      startAwsTranscription();
+    }
+  }
+
+  function startAwsTranscription() {
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
         const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
@@ -559,12 +710,13 @@ export default function ChatPage() {
         mediaRecorder.onstop = async () => {
           setListening(false);
           stream.getTracks().forEach((t) => t.stop());
+          mediaRecorderRef.current = null;
 
           const audioBlob = new Blob(chunks, { type: "audio/webm;codecs=opus" });
           try {
             const text = await transcribeAudio(audioBlob);
             if (text && !text.startsWith("[MOCK]") && !text.startsWith("Transcription failed")) {
-              setInput(text);
+              setInput((prev) => prev ? prev + " " + text : text);
               setTimeout(() => inputRef.current?.focus(), 50);
             }
           } catch (err) {
@@ -575,13 +727,13 @@ export default function ChatPage() {
         mediaRecorder.onerror = () => {
           setListening(false);
           stream.getTracks().forEach((t) => t.stop());
+          mediaRecorderRef.current = null;
         };
 
         mediaRecorder.start();
         setListening(true);
       })
       .catch(() => {
-        // Microphone permission denied or not available
         setListening(false);
       });
   }
@@ -591,7 +743,7 @@ export default function ChatPage() {
       {/* ── history sidebar ── */}
       <aside className="chat-hist">
         <div className="ch-top">
-          <button className="new-chat-btn" onClick={newChat}>
+          <button className="new-chat-btn" onClick={newChat} disabled={conversationsLoading}>
             <Plus size={14} /> New Chat
           </button>
         </div>
@@ -611,31 +763,76 @@ export default function ChatPage() {
             <div
               key={chat.id}
               className={`ch-item${chat.id === activeId ? " ch-active" : ""}`}
-              onClick={() => setActiveId(chat.id)}
-              style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+              onClick={() => { setActiveId(chat.id); setMenuOpenId(null); }}
+              style={{ display: "flex", alignItems: "center", cursor: "pointer", position: "relative" }}
             >
               <span className="ch-title" style={{ flex: 1 }}>{chat.title}</span>
               <span className="ch-time">{elapsed(chat.updatedAt)}</span>
               <button
                 className="ch-delete-btn"
-                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(chat.id); }}
-                title="Delete chat"
+                onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === chat.id ? null : chat.id); }}
+                title="Options"
                 style={{
                   background: "none", border: "none", color: "var(--muted2)",
                   cursor: "pointer", padding: "2px 4px", marginLeft: 4,
                   borderRadius: 4, display: "flex", alignItems: "center",
                 }}
               >
-                <X size={13} />
+                <MoreVertical size={13} />
               </button>
+              {menuOpenId === chat.id && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute", right: 0, top: "100%", zIndex: 100,
+                    background: "var(--card)", border: "1px solid var(--border)",
+                    borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    minWidth: 130, overflow: "hidden",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      if (!chat.backendId) return;
+                      setRenamingId(chat.id);
+                      setRenameValue(chat.title);
+                      setMenuOpenId(null);
+                    }}
+                    disabled={!chat.backendId}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, width: "100%",
+                      padding: "8px 12px", border: "none", background: "none",
+                      color: !chat.backendId ? "var(--muted2)" : "var(--fg)", fontSize: 12,
+                      cursor: !chat.backendId ? "not-allowed" : "pointer", textAlign: "left",
+                      opacity: !chat.backendId ? 0.5 : 1,
+                    }}
+                    onMouseEnter={(e) => { if (chat.backendId) e.currentTarget.style.background = "var(--bg)"; }}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <Pencil size={12} /> Rename
+                  </button>
+                  <button
+                    onClick={() => { setConfirmDeleteId(chat.id); setMenuOpenId(null); }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8, width: "100%",
+                      padding: "8px 12px", border: "none", background: "none",
+                      color: "#ef4444", fontSize: 12, cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              )}
             </div>
-          ))}
+          ))
+          )}
         </div>
       </aside>
 
       {/* ── chat thread ── */}
       <div className="chat-thread">
-        {activeChat ? (
+        {activeChat && (activeChat.messages.length > 0 || messagesLoading || activeChat.backendId) ? (
           <>
             {/* header */}
             <div className="chat-hd">
@@ -704,25 +901,27 @@ export default function ChatPage() {
               </div>
             </div>
           </>
-        ) : (
-          /* welcome / empty state */
+        ) : activeChat ? (
+          /* new chat — empty conversation with header + starter chips + input */
           <>
-            <div className="chat-welcome">
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 4 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/Opus_Inspection.png" alt="Opus Inspection" style={{ height: 48 }} />
-                <div className="cw-title" style={{ marginBottom: 0 }}>TalkSuite</div>
+            <div className="chat-hd">
+              <div>
+                <div className="chat-hd-title">{activeChat.title}</div>
+                <div className="chat-hd-sub">Start a new conversation</div>
               </div>
-              <div className="cw-sub">
-                Opus Inspection's NetSuite assistant. Ask about invoices, inventory,
-                customers, or how-to guidance — in plain English, no training needed.
+            </div>
+
+            <div className="chat-welcome">
+              <div className="cw-sub" style={{ marginBottom: 20 }}>
+                What would you like to know? Pick a question below or type your own.
               </div>
               <div className="cw-chips">
                 {STARTERS.map(s => (
-                  <button key={s} className="chip" onClick={() => ask(s)}>{s}</button>
+                  <button key={s} className="chip" onClick={() => ask(s)} disabled={loading}>{s}</button>
                 ))}
               </div>
             </div>
+
             <div className="input-bar">
               <div className="input-row">
                 <div className="input-wrap">
@@ -750,6 +949,24 @@ export default function ChatPage() {
               </div>
             </div>
           </>
+        ) : (
+          /* welcome page — no chat selected */
+          <div className="chat-welcome">
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 4, textAlign: "center", width: "100%" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Opus_Inspection.png" alt="Opus Inspection" style={{ height: 48, width: "auto", paddingLeft: 90, marginBottom: 20 }} />
+              <div className="cw-title">TalkSuite</div>
+            </div>
+            <div className="cw-sub">
+              Opus Inspection's NetSuite assistant. Ask about invoices, inventory,
+              customers, or how-to guidance — in plain English, no training needed.
+            </div>
+            <div className="cw-chips">
+              {STARTERS.map(s => (
+                <button key={s} className="chip" onClick={() => ask(s)} disabled={loading}>{s}</button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -757,7 +974,7 @@ export default function ChatPage() {
       {confirmDeleteId && (
         <div
           className="modal-overlay"
-          onClick={() => setConfirmDeleteId(null)}
+          onClick={() => { if (!deleteLoading) setConfirmDeleteId(null); }}
         >
           <div
             className="modal"
@@ -773,25 +990,94 @@ export default function ChatPage() {
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setConfirmDeleteId(null)}
+                disabled={deleteLoading}
                 style={{
                   padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border)",
-                  background: "transparent", color: "var(--fg)", cursor: "pointer", fontSize: 13,
+                  background: "transparent", color: "var(--fg)",
+                  cursor: deleteLoading ? "not-allowed" : "pointer", fontSize: 13,
+                  opacity: deleteLoading ? 0.6 : 1,
                 }}
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  deleteChat(confirmDeleteId);
-                  setConfirmDeleteId(null);
-                }}
+                onClick={() => deleteChat(confirmDeleteId)}
+                disabled={deleteLoading}
                 style={{
                   padding: "8px 16px", borderRadius: 6, border: "none",
-                  background: "#ef4444", color: "#fff", cursor: "pointer", fontSize: 13,
-                  fontWeight: 500,
+                  background: deleteLoading ? "#f87171" : "#ef4444", color: "#fff",
+                  cursor: deleteLoading ? "not-allowed" : "pointer", fontSize: 13,
+                  fontWeight: 500, display: "flex", alignItems: "center", gap: 6,
                 }}
               >
-                Delete
+                {deleteLoading && <Loader2 size={13} className="spin" />}
+                {deleteLoading ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── rename confirmation dialog ── */}
+      {renamingId && (
+        <div
+          className="modal-overlay"
+          onClick={() => { if (!renameLoading) { setRenamingId(null); setRenameValue(""); } }}
+        >
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 380, padding: 24 }}
+          >
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: "var(--fg)" }}>Rename conversation</h3>
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--muted)" }}>
+                Enter a new name for this conversation.
+              </p>
+            </div>
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameValue.trim() && !renameLoading) renameChat(renamingId, renameValue);
+                if (e.key === "Escape" && !renameLoading) { setRenamingId(null); setRenameValue(""); }
+              }}
+              disabled={renameLoading}
+              placeholder="Conversation name"
+              style={{
+                width: "100%", padding: "10px 12px", borderRadius: 6,
+                border: "1px solid var(--border)", outline: "none",
+                background: "var(--bg)", color: "var(--fg)", fontSize: 13,
+                fontFamily: "inherit", boxSizing: "border-box",
+                opacity: renameLoading ? 0.6 : 1,
+              }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                onClick={() => { setRenamingId(null); setRenameValue(""); }}
+                disabled={renameLoading}
+                style={{
+                  padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border)",
+                  background: "transparent", color: "var(--fg)", cursor: renameLoading ? "not-allowed" : "pointer", fontSize: 13,
+                  opacity: renameLoading ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => renameChat(renamingId, renameValue)}
+                disabled={!renameValue.trim() || renameLoading}
+                style={{
+                  padding: "8px 16px", borderRadius: 6, border: "none",
+                  background: renameValue.trim() && !renameLoading ? "var(--accent)" : "#ccc",
+                  color: "#fff", cursor: renameValue.trim() && !renameLoading ? "pointer" : "not-allowed",
+                  fontSize: 13, fontWeight: 500,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                {renameLoading && <Loader2 size={13} className="spin" />}
+                {renameLoading ? "Updating..." : "Update"}
               </button>
             </div>
           </div>
