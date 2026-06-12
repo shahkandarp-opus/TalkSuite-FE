@@ -1,18 +1,33 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Sparkles, LayoutDashboard, LogOut, User } from "lucide-react";
-import { logout, getStoredUser } from "@/lib/api";
+import { Sparkles, LogOut, User, Building2, Shield } from "lucide-react";
+import {
+  logout,
+  getStoredUser,
+  getStoredAccounts,
+  getActiveAccountId,
+  setActiveAccountId,
+} from "@/lib/api";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const isChatPage = path === "/";
   const user = getStoredUser();
+  const accounts = getStoredAccounts();
+  const activeAccountId = getActiveAccountId();
+  const isAdmin = user?.role === "admin";
 
   function handleLogout() {
     logout();
     router.push("/login");
+  }
+
+  function handleAccountChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setActiveAccountId(e.target.value);
+    // Reload so the active page picks up the new account's conversations
+    window.location.reload();
   }
 
   return (
@@ -22,6 +37,29 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/Opus_Inspection.png" alt="Opus Inspection" className="brand-logo-img" />
         </div>
+
+        {/* Account selector — only shown when the user has more than one account */}
+        {accounts.length > 1 && (
+          <div className="nav-section">
+            <span className="nav-label">NetSuite Account</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 4px" }}>
+              <Building2 size={14} style={{ color: "#004851", flexShrink: 0 }} />
+              <select
+                value={activeAccountId || ""}
+                onChange={handleAccountChange}
+                style={{
+                  width: "100%", padding: "6px 8px", borderRadius: 6,
+                  border: "1px solid var(--border)", fontSize: 12,
+                  background: "#fff", color: "#1a1a1a", cursor: "pointer",
+                }}
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         <div className="nav-section">
           <span className="nav-label">Intelligence</span>
@@ -33,17 +71,30 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <div className="nav-section">
-          <span className="nav-label">Analytics</span>
-          <nav className="nav">
-            <Link href="/dashboard" className={path === "/dashboard" ? "active" : ""}>
-              <LayoutDashboard size={16} />
-              <span>Dashboard</span>
-            </Link>
-          </nav>
-        </div>
+        {isAdmin && (
+          <div className="nav-section">
+            <span className="nav-label">Administration</span>
+            <nav className="nav">
+              <Link href="/admin" className={path === "/admin" ? "active" : ""}>
+                <Shield size={16} />
+                <span>Admin Portal</span>
+              </Link>
+            </nav>
+          </div>
+        )}
 
         <div className="sidebar-footer">
+          {/* Single-account label (shown when exactly one account) */}
+          {accounts.length === 1 && (
+            <div className="ns-pill" style={{ marginBottom: 8 }}>
+              <Building2 size={12} style={{ color: "#004851" }} />
+              <div className="ns-info">
+                <div className="ns-info-label">{accounts[0].name}</div>
+                <div className="ns-info-val">{accounts[0].account_id}</div>
+              </div>
+            </div>
+          )}
+
           {/* User info */}
           {user && (
             <div className="ns-pill" style={{ marginBottom: 8 }}>

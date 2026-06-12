@@ -259,6 +259,8 @@ function AiResultCard({ msg, onFollowUp }: { msg: AiMsg; onFollowUp: (q: string)
 // ─── main page ────────────────────────────────────────────────────────────────
 export default function ChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
+  const [convosLoading, setConvosLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -286,7 +288,8 @@ export default function ChatPage() {
       })
       .catch(() => {
         // Backend not reachable, start with empty state
-      });
+      })
+      .finally(() => setConvosLoading(false));
   }, []);
 
   // Load messages when active conversation changes
@@ -295,6 +298,7 @@ export default function ChatPage() {
     const chat = chats.find((c) => c.id === activeId);
     if (!chat || chat.messages.length > 0) return; // already loaded
 
+    setMessagesLoading(true);
     getConversation(chat.backendId)
       .then((detail) => {
         const messages: Message[] = detail.messages.map((m) => {
@@ -313,7 +317,8 @@ export default function ChatPage() {
         });
         updateChat(activeId, (c) => ({ ...c, messages }));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setMessagesLoading(false));
   }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // scroll to bottom on new messages
@@ -592,12 +597,17 @@ export default function ChatPage() {
         </div>
 
         <div className="ch-list">
-          {chats.length === 0 && (
+          {convosLoading && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "20px 10px", color: "var(--muted2)", fontSize: 12 }}>
+              <Loader2 size={14} className="spin" /> Loading chats...
+            </div>
+          )}
+          {!convosLoading && chats.length === 0 && (
             <div style={{ padding: "20px 10px", color: "var(--muted2)", fontSize: 12, textAlign: "center", fontFamily: "var(--mono)" }}>
               No chats yet
             </div>
           )}
-          {chats.map(chat => (
+          {!convosLoading && chats.map(chat => (
             <div
               key={chat.id}
               className={`ch-item${chat.id === activeId ? " ch-active" : ""}`}
@@ -640,6 +650,11 @@ export default function ChatPage() {
 
             {/* messages */}
             <div className="messages-area">
+              {messagesLoading && activeChat.messages.length === 0 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "40px", color: "var(--muted2)", fontSize: 13 }}>
+                  <Loader2 size={18} className="spin" /> Loading conversation...
+                </div>
+              )}
               {activeChat.messages.map(msg => {
                 if (msg.role === "user") {
                   return (

@@ -9,12 +9,20 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:800
 
 const TOKEN_KEY = "ts_token";
 const USER_KEY = "ts_user";
+const ACCOUNTS_KEY = "ts_accounts";
+const ACTIVE_ACCOUNT_KEY = "ts_active_account";
 
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
   role: string;
+};
+
+export type Account = {
+  id: string;
+  name: string;
+  account_id: string;
 };
 
 export function getToken(): string | null {
@@ -29,14 +37,37 @@ export function getStoredUser(): AuthUser | null {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-export function setAuth(token: string, user: AuthUser): void {
+export function getStoredAccounts(): Account[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(ACCOUNTS_KEY);
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+export function getActiveAccountId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+}
+
+export function setActiveAccountId(id: string): void {
+  localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
+}
+
+export function setAuth(token: string, user: AuthUser, accounts: Account[]): void {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  // Default the active account to the first one
+  if (accounts.length > 0 && !localStorage.getItem(ACTIVE_ACCOUNT_KEY)) {
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, accounts[0].id);
+  }
 }
 
 export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ACCOUNTS_KEY);
+  localStorage.removeItem(ACTIVE_ACCOUNT_KEY);
 }
 
 export function isAuthenticated(): boolean {
@@ -45,8 +76,11 @@ export function isAuthenticated(): boolean {
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
-  if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const accountId = getActiveAccountId();
+  if (accountId) headers["X-Account-Id"] = accountId;
+  return headers;
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -64,7 +98,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   }
 
   const data = await res.json();
-  setAuth(data.access_token, data.user);
+  setAuth(data.access_token, data.user, data.accounts || []);
   return data.user;
 }
 
@@ -280,4 +314,176 @@ export async function transcribeAudio(
 
   const data = await res.json();
   return data.text;
+}
+
+// ─── Accounts ─────────────────────────────────────────────────────────────────
+
+export async function fetchMyAccounts(): Promise<Account[]> {
+  const res = await fetch(`${BACKEND_URL}/accounts/me`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to fetch accounts: ${res.status}`);
+  return res.json();
+}
+
+// ─── Admin: Accounts ──────────────────────────────────────────────────────────
+
+export type AdminAccount = {
+  id: string;
+  name: string;
+  account_id: string;
+  client_id: string;
+  mcp_url: string | null;
+  scope: string;
+  is_active: boolean;
+  connected: boolean;
+  created_at: string;
+};
+
+export type AccountCreateInput = {
+  name: string;
+  account_id: string;
+  client_id: string;
+  client_secret?: string;
+  mcp_url?: string;
+  redirect_uri?: string;
+  scope?: string;
+};
+
+export async function adminListAccounts(): Promise<AdminAccount[]> {
+  const res = await fetch(`${BACKEND_URL}/admin/accounts`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to list accounts: ${res.status}`);
+  return res.json();
+}
+
+export async function adminCreateAccount(input: AccountCreateInput): Promise<AdminAccount> {
+  const res = await fetch(`${BACKEND_URL}/admin/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export type AccountUpdateInput = {
+  name?: string;
+  account_id?: string;
+  client_id?: string;
+  client_secret?: string;
+  mcp_url?: string;
+  redirect_uri?: string;
+  scope?: string;
+};
+
+export async function adminUpdateAccount(accountId: string, input: AccountUpdateInput): Promise<AdminAccount> {
+  const res = await fetch(`${BACKEND_URL}/admin/accounts/${accountId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Begin PKCE for an account; returns the NetSuite authorize URL. */
+export async function startPkce(accountId: string): Promise<string> {
+  const res = await fetch(`${BACKEND_URL}/accounts/${accountId}/pkce/start`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.auth_url;
+}
+
+// ─── Admin: Users ───────────────────────────────────────────────────────────
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  created_at: string;
+  accounts: Account[];
+};
+
+export type UserCreateInput = {
+  email: string;
+  name: string;
+  password: string;
+  role: string;
+  account_ids: string[];
+};
+
+export async function adminListUsers(): Promise<AdminUser[]> {
+  const res = await fetch(`${BACKEND_URL}/admin/users`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Failed to list users: ${res.status}`);
+  return res.json();
+}
+
+export async function adminCreateUser(input: UserCreateInput): Promise<AdminUser> {
+  const res = await fetch(`${BACKEND_URL}/admin/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function adminAssignAccounts(userId: string, accountIds: string[]): Promise<AdminUser> {
+  const res = await fetch(`${BACKEND_URL}/admin/users/${userId}/accounts`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ account_ids: accountIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function adminUpdateUserRole(userId: string, role: string): Promise<AdminUser> {
+  const res = await fetch(`${BACKEND_URL}/admin/users/${userId}/role`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export type UserUpdateInput = {
+  name?: string;
+  role?: string;
+  password?: string;
+  account_ids?: string[];
+};
+
+export async function adminUpdateUser(userId: string, input: UserUpdateInput): Promise<AdminUser> {
+  const res = await fetch(`${BACKEND_URL}/admin/users/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
