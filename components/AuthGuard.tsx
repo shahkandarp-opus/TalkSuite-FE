@@ -23,8 +23,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, router]);
 
-  // Don't render anything until auth check is complete (prevents flash)
-  if (!checked) return null;
+  // Show branded loading screen until auth check is complete
+  if (!checked) {
+    return (
+      <div className="app-loader">
+        <div className="app-loader-content">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/Opus_Inspection.png" alt="Opus Inspection" className="app-loader-logo" />
+          <div className="app-loader-spinner" />
+          <p className="app-loader-text">Loading TalkSuite…</p>
+        </div>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
