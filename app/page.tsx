@@ -265,8 +265,6 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [conversationsLoading, setConversationsLoading] = useState(true);
-  const [messagesLoading, setMessagesLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -284,7 +282,7 @@ export default function ChatPage() {
 
   // Load conversations from backend on mount
   useEffect(() => {
-    setConversationsLoading(true);
+    setConvosLoading(true);
     listConversations()
       .then((convs) => {
         const loaded: Chat[] = convs.map((c) => ({
@@ -314,7 +312,6 @@ export default function ChatPage() {
     if (!chat.backendId) return; // local-only chat, nothing to fetch
 
     setMessagesLoading(true);
-    setMessagesLoading(true);
     getConversation(chat.backendId)
       .then((detail) => {
         const messages: Message[] = detail.messages.map((m) => {
@@ -333,8 +330,6 @@ export default function ChatPage() {
         });
         updateChat(activeId, (c) => ({ ...c, messages }));
       })
-      .catch(() => {})
-      .finally(() => setMessagesLoading(false));
       .catch(() => {})
       .finally(() => setMessagesLoading(false));
   }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -743,7 +738,7 @@ export default function ChatPage() {
       {/* ── history sidebar ── */}
       <aside className="chat-hist">
         <div className="ch-top">
-          <button className="new-chat-btn" onClick={newChat} disabled={conversationsLoading}>
+          <button className="new-chat-btn" onClick={newChat} disabled={convosLoading}>
             <Plus size={14} /> New Chat
           </button>
         </div>
@@ -825,8 +820,7 @@ export default function ChatPage() {
                 </div>
               )}
             </div>
-          ))
-          )}
+          ))}
         </div>
       </aside>
 
